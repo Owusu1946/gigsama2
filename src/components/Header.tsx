@@ -3,6 +3,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { ProjectList } from './ProjectList';
+import { ProfileModal } from './ProfileModal';
+import { useRouter } from 'next/navigation';
 
 // Define Project interface to match the one used in ProjectList
 interface Project {
@@ -17,20 +19,56 @@ interface HeaderProps {
   onSelectProject?: (project: Project) => void;
 }
 
-// Sample project data - would typically come from an API or props
-const sampleProjects = [
-  { id: '1', title: 'Database Schema for User Roles' },
-  { id: '2', title: 'Employee Management Database', isHighlighted: true },
-  { id: '3', title: 'Permissions & Access Control Schema' },
-  { id: '4', title: 'Customer Orders & Payments Schema' },
-  { id: '5', title: 'Product & Cart Schema' },
-];
+// Sample user data
+const sampleUserData = {
+  name: 'Alex Johnson',
+  email: 'alex@example.com',
+  role: 'Developer',
+  joinDate: 'Jan 15, 2024',
+};
 
 export function Header({ projectTitle = null, onProjectTitleChange, onSelectProject }: HeaderProps) {
+  const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(projectTitle || '');
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch projects when menu opens
+  useEffect(() => {
+    if (isMenuOpen) {
+      fetchProjects();
+    }
+  }, [isMenuOpen]);
+
+  // Fetch projects from the API
+  const fetchProjects = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/projects');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch projects');
+      }
+      
+      const data = await response.json();
+      
+      // Highlight the current project if it exists
+      const highlightedProjects = data.map((project: Project) => ({
+        ...project,
+        isHighlighted: projectTitle === project.title
+      }));
+      
+      setProjects(highlightedProjects);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Update local state when prop changes
   useEffect(() => {
@@ -48,22 +86,16 @@ export function Header({ projectTitle = null, onProjectTitleChange, onSelectProj
     setIsMenuOpen(!isMenuOpen);
   };
 
+  const toggleProfileModal = () => {
+    setIsProfileModalOpen(!isProfileModalOpen);
+  };
+
   const handleNewProject = () => {
-    console.log('Create new project');
+    console.log('Navigating to homepage for new project');
     setIsMenuOpen(false);
     
-    // Create a new project with default settings
-    if (onSelectProject) {
-      // Create a new project with a unique ID and default title
-      const newProject: Project = {
-        id: `new-${Date.now()}`, // Generate a unique ID
-        title: 'New Project',
-        isHighlighted: true
-      };
-      
-      // Call the parent handler with the new project
-      onSelectProject(newProject);
-    }
+    // Navigate to the homepage where the user can create a new project
+    router.push('/');
   };
 
   const handleSelectProject = (project: Project) => {
@@ -77,7 +109,7 @@ export function Header({ projectTitle = null, onProjectTitleChange, onSelectProj
       onProjectTitleChange(project.title);
     }
     
-    // Forward the selection to the parent component if needed
+    // Forward the selection to the parent component which will handle navigation
     if (onSelectProject) {
       onSelectProject(project);
     }
@@ -164,20 +196,32 @@ export function Header({ projectTitle = null, onProjectTitleChange, onSelectProj
               />
             )}
           </button>
-          <div className="w-8 h-8 rounded-full overflow-hidden bg-[#4F46E5] flex items-center justify-center text-white">
-            {/* Solid avatar with no content */}
-          </div>
+          <button 
+            className="w-8 h-8 rounded-full overflow-hidden bg-[#4F46E5] flex items-center justify-center text-white text-sm font-medium"
+            onClick={toggleProfileModal}
+            aria-label="Open profile"
+          >
+            {sampleUserData.name.charAt(0)}
+          </button>
         </div>
       </header>
 
       {/* Project list overlay */}
       {isMenuOpen && (
         <ProjectList 
-          projects={sampleProjects} 
+          projects={projects} 
           onNewProject={handleNewProject} 
           onSelectProject={handleSelectProject}
+          isLoading={isLoading}
         />
       )}
+
+      {/* Profile Modal */}
+      <ProfileModal 
+        isOpen={isProfileModalOpen} 
+        onClose={toggleProfileModal} 
+        userData={sampleUserData} 
+      />
     </>
   );
 }

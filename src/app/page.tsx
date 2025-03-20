@@ -7,6 +7,7 @@ import { InputBar } from '@/components/InputBar';
 import { ChatInterface } from '@/components/ChatInterface';
 import { MessageType } from '@/components/ChatMessage';
 import { useRouter } from 'next/navigation';
+import { SchemaDisplay } from '@/components/SchemaDisplay';
 
 // Define project type if not already defined elsewhere
 interface Project {
@@ -21,35 +22,101 @@ export default function Home() {
   const [initialMessages, setInitialMessages] = useState<MessageType[]>([]);
   const [showTransition, setShowTransition] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [showSchema, setShowSchema] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  // Handle the first input differently to transition from welcome to chat
-  const handleInitialSubmit = (value: string) => {
-    console.log('Initial user input:', value);
+  // Fetch projects on mount
+  useEffect(() => {
+    async function loadProjects() {
+      try {
+        const response = await fetch('/api/projects');
+        if (response.ok) {
+          // Just to check if the API is working
+          console.log('Projects API is working');
+        }
+      } catch (error) {
+        console.error('Error checking projects API:', error);
+      }
+    }
     
-    // Start transition animation
+    loadProjects();
+  }, []);
+
+  // Handle the first input differently to transition from welcome to chat
+  const handleInitialSubmit = async (value: string) => {
+    // Start loading and transition animation
+    setIsLoading(true);
     setShowTransition(true);
     
-    // Create the first message pair
-    const firstUserMessage: MessageType = {
-      id: Date.now().toString(),
-      content: value,
-      isUser: true
-    };
-    
-    const firstAIResponse: MessageType = {
-      id: (Date.now() + 1).toString(),
-      content: generateInitialResponse(value),
-      isUser: false
-    };
-    
-    // Set the messages that will be passed to ChatInterface
-    setInitialMessages([firstUserMessage, firstAIResponse]);
-    
-    // Transition to chat interface with slight delay for animation
-    setTimeout(() => {
-      setIsConversationStarted(true);
-    }, 300);
+    try {
+      // Create a new project
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          title: generateSummary(value)
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create project');
+      }
+      
+      const project = await response.json();
+      
+      // Set current project ID
+      setCurrentProjectId(project.id);
+      
+      // Save the title
+      setConversationSummary(project.title);
+      
+      // Send the first message
+      const chatResponse = await fetch(`/api/chat/${project.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: value }),
+      });
+      
+      if (!chatResponse.ok) {
+        throw new Error('Failed to send message');
+      }
+      
+      // Redirect to the project page
+      router.push(`/project/${project.id}`);
+      
+    } catch (error) {
+      console.error('Error creating project and starting conversation:', error);
+      
+      // Create the first message pair for fallback behavior
+      const firstUserMessage: MessageType = {
+        id: Date.now().toString(),
+        content: value,
+        isUser: true
+      };
+      
+      const firstAIResponse: MessageType = {
+        id: (Date.now() + 1).toString(),
+        content: generateInitialResponse(value),
+        isUser: false
+      };
+      
+      // Set the messages that will be passed to ChatInterface
+      setInitialMessages([firstUserMessage, firstAIResponse]);
+      
+      // Show schema when conversation starts
+      setShowSchema(true);
+      
+      // Transition to chat interface with slight delay for animation
+      setTimeout(() => {
+        setIsConversationStarted(true);
+        setIsLoading(false);
+      }, 300);
+    }
   };
 
   // Handle project selection
@@ -85,24 +152,27 @@ export default function Home() {
         }, 300);
       }
     } else {
-      // For existing projects, you could load project data here
-      // For now, just transition to chat if needed
-      if (!isConversationStarted) {
-        setShowTransition(true);
-        setTimeout(() => {
-          setIsConversationStarted(true);
-          setTimeout(() => {
-            setShowTransition(false);
-          }, 300);
-        }, 300);
-      }
+      // For existing projects, navigate to project page
+      router.push(`/project/${project.id}`);
     }
   };
 
   // Add handler for title changes
   const handleProjectTitleChange = (newTitle: string) => {
     setConversationSummary(newTitle);
-    // Optionally, you could save the title change to your backend here
+    
+    // If we have a current project ID, update the title
+    if (currentProjectId) {
+      fetch(`/api/projects/${currentProjectId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title: newTitle }),
+      }).catch(err => {
+        console.error('Failed to update project title:', err);
+      });
+    }
   };
   
   // Reset animation state after transition
@@ -162,20 +232,30 @@ export default function Home() {
       {!isConversationStarted ? (
         <div className={`h-[calc(100vh-57px)] flex flex-col ${showTransition ? 'opacity-0 transition-opacity duration-300' : ''}`}>
           <div className="flex-1 flex flex-col items-center justify-center">
-            <WelcomeMessage />
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900 mb-4"></div>
+                <h2 className="text-xl font-medium mb-2">Initializing project...</h2>
+                <p className="text-gray-500 text-center max-w-md">
+                  We're setting up your database schema and preparing your environment.
+                </p>
+              </div>
+            ) : (
+              <WelcomeMessage />
+            )}
           </div>
-          <div className="w-full px-4 pb-8 max-w-3xl mx-auto">
-            <InputBar onSubmit={handleInitialSubmit} />
+          <div className="w-full px-4 pb-15 max-w-3xl mx-auto">
+            <InputBar onSubmit={handleInitialSubmit} disabled={isLoading} />
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-between animate-fade-in">
-          {/* Empty space for schema display in the future */}
-          <div className="w-full max-w-3xl mx-auto flex-grow-0 py-38">
-            {/* Empty div reserves space at the top */}
+        <div className="flex-1 flex flex-col items-center animate-fade-in">
+          {/* Schema display at the top - always visible once conversation starts */}
+          <div className="w-full max-w-5xl mx-auto">
+            <SchemaDisplay isVisible={showSchema} schema={null} />
           </div>
           
-          {/* Chat Interface - pushed down */}
+          {/* Chat Interface - below schema */}
           <div className="w-full max-w-3xl mx-auto flex-1 flex flex-col pt-0 pb-6">
             <ChatInterface initialMessages={initialMessages} />
           </div>

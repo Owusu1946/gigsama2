@@ -1,17 +1,34 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { InputBar } from './InputBar';
 import { ChatMessage, MessageType } from './ChatMessage';
 
 interface ChatInterfaceProps {
   initialMessages?: MessageType[];
+  onSubmit?: (message: string) => void | Promise<void>;
+  projectId?: string;
 }
 
-export function ChatInterface({ initialMessages = [] }: ChatInterfaceProps) {
+export function ChatInterface({ 
+  initialMessages = [], 
+  onSubmit,
+  projectId 
+}: ChatInterfaceProps) {
   const [allMessages, setAllMessages] = useState<MessageType[]>(initialMessages);
   const [visibleMessages, setVisibleMessages] = useState<MessageType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Scroll to bottom whenever messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [visibleMessages]);
+  
+  useEffect(() => {
+    // Update all messages when initialMessages changes
+    setAllMessages(initialMessages);
+  }, [initialMessages]);
   
   useEffect(() => {
     // Only show the two most recent messages
@@ -19,7 +36,31 @@ export function ChatInterface({ initialMessages = [] }: ChatInterfaceProps) {
   }, [allMessages]);
 
   const handleSubmit = async (message: string) => {
-    // Add user message
+    // If external handler is provided, use it
+    if (onSubmit) {
+      // Add user message immediately for better UX
+      const userMessage: MessageType = {
+        id: Date.now().toString(),
+        content: message,
+        isUser: true
+      };
+      
+      // Update local state for immediate feedback
+      setAllMessages(prev => [...prev, userMessage]);
+      
+      // Show loading state
+      setIsLoading(true);
+      
+      // Call the provided submit handler
+      await onSubmit(message);
+      
+      // Remove loading state
+      setIsLoading(false);
+      
+      return;
+    }
+    
+    // Default behavior if no external handler is provided (for backward compatibility)
     const userMessage: MessageType = {
       id: Date.now().toString(),
       content: message,
@@ -41,34 +82,32 @@ export function ChatInterface({ initialMessages = [] }: ChatInterfaceProps) {
         isUser: false
       };
       setAllMessages(prevMessages => [...prevMessages, aiMessage]);
-    }, 1000);
+    }, 700); // Faster response time for better UX
   };
   
-  // Simple function to simulate AI responses
+  // Simple function to simulate AI responses (used only when no external handler is provided)
   const generateAIResponse = (userMessage: string): string => {
     // This is just a placeholder - in a real app, you'd call your AI API here
+    
+    // Instead of showing the schema in the message, show a simple confirmation
     if (userMessage.toLowerCase().includes('hello') || userMessage.toLowerCase().includes('hi')) {
       return "Hello! How can I help you with your database schema today?";
     }
     
     if (userMessage.toLowerCase().includes('table') || userMessage.toLowerCase().includes('field')) {
-      return "Great! What fields would you like to include in this table?";
+      return "I understand! I've updated the schema based on your request. What else would you like to add?";
     }
     
     if (userMessage.toLowerCase().includes('database') || userMessage.toLowerCase().includes('schema')) {
-      return "I can help you design a database schema. What kind of data will you be storing?";
+      return "I've updated the schema as shown above. Does it look good to you?";
     }
     
-    if (userMessage.toLowerCase().includes('user') || userMessage.toLowerCase().includes('employee')) {
-      return "For a Users table, common fields include: id (primary key), name, email, role, created_at, and last_login. What else would you like to add?";
-    }
-    
-    return "I understand! Let's continue building your database schema. What should we add next?";
+    return "I've updated the database schema. Is there anything else you'd like to modify?";
   };
 
   return (
     <div className="flex flex-col w-full flex-1">
-      <div className="flex-1 px-4 mb-4 relative">
+      <div className="flex-1 px-4 mb-4 relative overflow-y-auto">
         {visibleMessages.map(message => (
           <ChatMessage key={message.id} message={message} />
         ))}
@@ -82,6 +121,8 @@ export function ChatInterface({ initialMessages = [] }: ChatInterfaceProps) {
             </div>
           </div>
         )}
+        
+        <div ref={messagesEndRef} />
       </div>
       
       <div className="mt-auto">
