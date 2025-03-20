@@ -8,6 +8,7 @@ export async function GET(
 ) {
   try {
     const id = params.id;
+    
     const project = await getProject(id);
     
     if (!project) {
@@ -28,6 +29,7 @@ export async function PATCH(
 ) {
   try {
     const id = params.id;
+    
     const data = await request.json();
     
     const updatedProject = await updateProject(id, data);
@@ -50,6 +52,7 @@ export async function DELETE(
 ) {
   try {
     const id = params.id;
+    
     const success = await deleteProject(id);
     
     if (!success) {

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { InputBar } from './InputBar';
 import { ChatMessage, MessageType } from './ChatMessage';
 
 interface ChatInterfaceProps {
@@ -35,7 +34,8 @@ export function ChatInterface({
     setVisibleMessages(allMessages.slice(-2));
   }, [allMessages]);
 
-  const handleSubmit = async (message: string) => {
+  // Function to add a message - will be called by the parent component
+  const addMessage = (message: string) => {
     // If external handler is provided, use it
     if (onSubmit) {
       // Add user message immediately for better UX
@@ -52,10 +52,16 @@ export function ChatInterface({
       setIsLoading(true);
       
       // Call the provided submit handler
-      await onSubmit(message);
-      
-      // Remove loading state
-      setIsLoading(false);
+      const result = onSubmit(message);
+      if (result instanceof Promise) {
+        result.finally(() => {
+          // Remove loading state
+          setIsLoading(false);
+        });
+      } else {
+        // If it's not a Promise, just set loading to false
+        setIsLoading(false);
+      }
       
       return;
     }
@@ -107,7 +113,7 @@ export function ChatInterface({
 
   return (
     <div className="flex flex-col w-full flex-1">
-      <div className="flex-1 px-4 mb-4 relative overflow-y-auto">
+      <div className="flex-1 px-4 relative overflow-y-auto">
         {visibleMessages.map(message => (
           <ChatMessage key={message.id} message={message} />
         ))}
@@ -124,10 +130,11 @@ export function ChatInterface({
         
         <div ref={messagesEndRef} />
       </div>
-      
-      <div className="mt-auto">
-        <InputBar onSubmit={handleSubmit} />
-      </div>
     </div>
   );
-} 
+}
+
+// Make the addMessage function accessible to parent components
+export type ChatInterfaceHandle = {
+  addMessage: (message: string) => void;
+}; 

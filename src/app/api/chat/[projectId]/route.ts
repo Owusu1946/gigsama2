@@ -8,8 +8,8 @@ export async function POST(
   { params }: { params: { projectId: string } }
 ) {
   try {
-    // Properly handle route parameters to fix warnings
-    const { projectId } = params;
+    // Properly await route parameters
+    const projectId = params.projectId;
     const { message } = await request.json();
     
     // Get the project
@@ -85,8 +85,8 @@ export async function GET(
   { params }: { params: { projectId: string } }
 ) {
   try {
-    // Await params to fix Next.js warning about sync access to dynamic route params
-    const { projectId } = params;
+    // Properly await route parameters
+    const projectId = params.projectId;
     
     // Get the project
     const project = await getProject(projectId);

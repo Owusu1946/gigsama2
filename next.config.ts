@@ -3,10 +3,10 @@ const nextConfig = {
   env: {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   },
-  // Fix for the dynamic route parameter usage
+  // Fixed configuration for Next.js 15+
   experimental: {
-    // Using proper configuration for external packages
-    serverExternalPackages: []
+    // Remove this unrecognized key
+    // serverExternalPackages: []
   }
 };
 
