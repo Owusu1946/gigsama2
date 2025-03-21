@@ -1,6 +1,12 @@
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
 import { nanoid } from 'nanoid';
 
+// Create client with clearer parameters
+const redis = new Redis({
+  url: process.env.keymap_KV_REST_API_URL || 'https://superb-pigeon-25964.upstash.io',
+  token: process.env.keymap_KV_REST_API_TOKEN || '',
+});
+  
 // Define the types for our database
 export interface Message {
   id: string;
@@ -43,8 +49,7 @@ export interface Project {
 // Get all projects
 export async function getProjects(): Promise<Project[]> {
   try {
-    // Get projects from KV store
-    const projects = await kv.get('projects') as Project[] || [];
+    const projects = await redis.get('projects') as Project[] || [];
     return projects;
   } catch (error) {
     console.error('Error getting projects:', error);
@@ -72,8 +77,7 @@ export async function createProject(title: string = 'New Project'): Promise<Proj
   
   projects.push(newProject);
   
-  // Store updated projects list
-  await kv.set('projects', projects);
+  await redis.set('projects', projects);
   
   return newProject;
 }
@@ -91,7 +95,7 @@ export async function updateProject(id: string, updates: Partial<Project>): Prom
     updatedAt: Date.now()
   };
   
-  await kv.set('projects', projects);
+  await redis.set('projects', projects);
   return projects[index];
 }
 
@@ -103,7 +107,7 @@ export async function deleteProject(id: string): Promise<boolean> {
   if (index === -1) return false;
   
   projects.splice(index, 1);
-  await kv.set('projects', projects);
+  await redis.set('projects', projects);
   
   return true;
 }
