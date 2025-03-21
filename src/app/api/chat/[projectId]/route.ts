@@ -3,13 +3,14 @@ import { getProject, addMessage, updateSchema } from '@/lib/db';
 import { getChatResponse, generateSchema, isSchemaGenerationRequest } from '@/lib/ai';
 
 // POST /api/chat/[projectId] - Send a message and get AI response
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { projectId: string } }
-) {
+export async function POST(request: NextRequest) {
   try {
-    // Properly await route parameters
-    const projectId = params.projectId;
+    // Extract projectId from URL path
+    const projectId = request.nextUrl.pathname.split('/').pop();
+    if (!projectId) {
+      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+    }
+    
     const { message } = await request.json();
     
     // Get the project
@@ -52,7 +53,6 @@ export async function POST(
         console.error('Error generating schema:', error);
         // Continue without a schema if generation fails
       }
-
     }
     
     // Get AI response
@@ -80,13 +80,13 @@ export async function POST(
 }
 
 // GET /api/chat/[projectId] - Get chat history for a project
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { projectId: string } }
-) {
+export async function GET(request: NextRequest) {
   try {
-    // Properly await route parameters
-    const projectId = params.projectId;
+    // Extract projectId from URL path
+    const projectId = request.nextUrl.pathname.split('/').pop();
+    if (!projectId) {
+      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+    }
     
     // Get the project
     const project = await getProject(projectId);

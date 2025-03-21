@@ -189,16 +189,16 @@ export default function Home() {
     if (userMessage.toLowerCase().includes('database') || 
         userMessage.toLowerCase().includes('schema') ||
         userMessage.toLowerCase().includes('sql')) {
-      return "Let's design a database schema that fits your needs. What tables would you like to include?";
+      return "Let&apos;s design a database schema that fits your needs. What tables would you like to include?";
     }
     
     if (userMessage.toLowerCase().includes('employee') || 
         userMessage.toLowerCase().includes('company') ||
         userMessage.toLowerCase().includes('manage')) {
-      return "Got it! Let's start with a Users table to store employee details.";
+      return "Got it! Let&apos;s start with a Users table to store employee details.";
     }
     
-    return "I understand what you're looking for. Let's create a database schema for that. Should we start with a main entity table?";
+    return "I understand what you&apos;re looking for. Let&apos;s create a database schema for that. Should we start with a main entity table?";
   };
   
   // Generate a conversation summary from the first message
@@ -242,7 +242,7 @@ export default function Home() {
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900 mb-4"></div>
                 <h2 className="text-xl font-medium mb-2">Initializing project...</h2>
                 <p className="text-gray-500 text-center max-w-md">
-                  We're setting up your database schema and preparing your environment.
+                  We&apos;re setting up your database schema and preparing your environment.
                 </p>
               </div>
             ) : (

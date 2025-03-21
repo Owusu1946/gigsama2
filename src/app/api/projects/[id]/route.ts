@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getProject, updateProject, deleteProject } from '@/lib/db';
 
 // GET /api/projects/[id] - Get a specific project
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest) {
   try {
-    const id = params.id;
+    // Extract id from URL path
+    const id = request.nextUrl.pathname.split('/').pop();
+    if (!id) {
+      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+    }
     
     const project = await getProject(id);
     
@@ -23,12 +24,13 @@ export async function GET(
 }
 
 // PATCH /api/projects/[id] - Update a specific project
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: NextRequest) {
   try {
-    const id = params.id;
+    // Extract id from URL path
+    const id = request.nextUrl.pathname.split('/').pop();
+    if (!id) {
+      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+    }
     
     const data = await request.json();
     
@@ -46,12 +48,13 @@ export async function PATCH(
 }
 
 // DELETE /api/projects/[id] - Delete a specific project
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest) {
   try {
-    const id = params.id;
+    // Extract id from URL path
+    const id = request.nextUrl.pathname.split('/').pop();
+    if (!id) {
+      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+    }
     
     const success = await deleteProject(id);
     
