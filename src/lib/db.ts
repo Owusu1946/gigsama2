@@ -1,5 +1,4 @@
-import { promises as fs } from 'fs';
-import path from 'path';
+import { kv } from '@vercel/kv';
 import { nanoid } from 'nanoid';
 
 // Define the types for our database
@@ -41,34 +40,11 @@ export interface Project {
   schema?: Schema;
 }
 
-// Path to our JSON database file
-const DB_PATH = path.join(process.cwd(), 'data');
-const PROJECTS_FILE = path.join(DB_PATH, 'projects.json');
-
-// Initialize database
-async function initDB() {
-  try {
-    await fs.mkdir(DB_PATH, { recursive: true });
-    
-    try {
-      await fs.access(PROJECTS_FILE);
-    } catch (error) {
-      // File doesn't exist, create it with empty projects array
-      await fs.writeFile(PROJECTS_FILE, JSON.stringify({ projects: [] }, null, 2));
-    }
-  } catch (error) {
-    console.error('Error initializing database:', error);
-    throw error;
-  }
-}
-
 // Get all projects
 export async function getProjects(): Promise<Project[]> {
-  await initDB();
-  
   try {
-    const data = await fs.readFile(PROJECTS_FILE, 'utf8');
-    const { projects } = JSON.parse(data);
+    // Get projects from KV store
+    const projects = await kv.get('projects') as Project[] || [];
     return projects;
   } catch (error) {
     console.error('Error getting projects:', error);
@@ -84,8 +60,6 @@ export async function getProject(id: string): Promise<Project | null> {
 
 // Create a new project
 export async function createProject(title: string = 'New Project'): Promise<Project> {
-  await initDB();
-  
   const projects = await getProjects();
   
   const newProject: Project = {
@@ -98,66 +72,58 @@ export async function createProject(title: string = 'New Project'): Promise<Proj
   
   projects.push(newProject);
   
-  await fs.writeFile(PROJECTS_FILE, JSON.stringify({ projects }, null, 2));
+  // Store updated projects list
+  await kv.set('projects', projects);
   
   return newProject;
 }
 
 // Update a project
-export async function updateProject(
-  id: string,
-  updates: Partial<Omit<Project, 'id'>>
-): Promise<Project | null> {
+export async function updateProject(id: string, updates: Partial<Project>): Promise<Project | null> {
   const projects = await getProjects();
-  const projectIndex = projects.findIndex(project => project.id === id);
+  const index = projects.findIndex(project => project.id === id);
   
-  if (projectIndex === -1) return null;
+  if (index === -1) return null;
   
-  const updatedProject = {
-    ...projects[projectIndex],
+  projects[index] = {
+    ...projects[index],
     ...updates,
     updatedAt: Date.now()
   };
   
-  projects[projectIndex] = updatedProject;
-  
-  await fs.writeFile(PROJECTS_FILE, JSON.stringify({ projects }, null, 2));
-  
-  return updatedProject;
+  await kv.set('projects', projects);
+  return projects[index];
 }
 
 // Delete a project
 export async function deleteProject(id: string): Promise<boolean> {
   const projects = await getProjects();
-  const filteredProjects = projects.filter(project => project.id !== id);
+  const index = projects.findIndex(project => project.id === id);
   
-  if (filteredProjects.length === projects.length) {
-    return false; // No project was deleted
-  }
+  if (index === -1) return false;
   
-  await fs.writeFile(PROJECTS_FILE, JSON.stringify({ projects: filteredProjects }, null, 2));
+  projects.splice(index, 1);
+  await kv.set('projects', projects);
   
   return true;
 }
 
-// Add a message to a project
+// Add message to a project
 export async function addMessage(projectId: string, message: Omit<Message, 'id' | 'timestamp'>): Promise<Project | null> {
-  const project = await getProject(projectId);
-  
-  if (!project) return null;
-  
-  const newMessage: Message = {
-    ...message,
-    id: nanoid(),
-    timestamp: Date.now()
-  };
-  
-  const updatedMessages = [...(project.messages || []), newMessage];
-  
-  return updateProject(projectId, { messages: updatedMessages });
+  return updateProject(projectId, {
+    messages: [
+      ...(await getProject(projectId))?.messages || [],
+      {
+        id: nanoid(),
+        content: message.content,
+        isUser: message.isUser,
+        timestamp: Date.now()
+      }
+    ]
+  });
 }
 
-// Update project schema
+// Update schema
 export async function updateSchema(projectId: string, schema: Schema): Promise<Project | null> {
   return updateProject(projectId, { schema });
 } 
