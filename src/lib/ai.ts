@@ -1,8 +1,10 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { Message, Schema, SchemaTable, SchemaField } from './db';
+import path from 'path';
+import fs from 'fs/promises';
 
 // Initialize Gemini AI with API key
-// In production, this should be an environment variable
+
 const API_KEY = process.env.GEMINI_API_KEY || 'YOUR_API_KEY_HERE';
 const genAI = new GoogleGenerativeAI(API_KEY);
 
@@ -400,5 +402,19 @@ Don't suggest generating a schema until you have sufficient information about th
   } catch (error) {
     console.error('Error getting chat response:', error);
     return "I'm sorry, I encountered an error processing your request. Could you please try again?";
+  }
+}
+
+// Path to our JSON database file
+const DB_PATH = path.join(process.cwd(), 'data');
+const PROJECTS_FILE = path.join(DB_PATH, 'projects.json');
+
+async function initDB() {
+  try {
+    await fs.mkdir(DB_PATH, { recursive: true });
+    // ...
+  } catch (error) {
+    console.error('Error initializing database:', error);
+    throw error;
   }
 } 
