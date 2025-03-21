@@ -13,6 +13,13 @@ interface ChatMessageProps {
 }
 
 export function ChatMessage({ message }: ChatMessageProps) {
+  // Create a function to decode HTML entities
+  const decodeHTMLEntities = (text: string) => {
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
+  };
+
   return (
     <div className="flex w-full chat-message justify-center mb-6">
       <div 
@@ -22,7 +29,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
             : 'bg-white text-[#0f172a] rounded-[18px]'
         }`}
       >
-        {message.content}
+        {decodeHTMLEntities(message.content)}
       </div>
     </div>
   );
