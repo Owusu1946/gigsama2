@@ -15,6 +15,7 @@ function GuestChatContent() {
   const initialQuery = searchParams?.get('query') || '';
   
   const [isLoading, setIsLoading] = useState(false);
+  const [showThinking, setShowThinking] = useState(false); // Separate state for thinking indicator
   const [sessionTitle, setSessionTitle] = useState(initialQuery ? `${initialQuery.substring(0, 30)}... (Guest)` : 'New Chat (Guest)');
   const [messages, setMessages] = useState<MessageType[]>([]);
   const [schema, setSchema] = useState<any>(null);
@@ -32,6 +33,15 @@ function GuestChatContent() {
     }
   }, [initialQuery, isInitialized]);
   
+  // Debug logging for state changes
+  useEffect(() => {
+    console.log('[Debug] isLoading state changed:', isLoading);
+  }, [isLoading]);
+
+  useEffect(() => {
+    console.log('[Debug] showThinking state changed:', showThinking);
+  }, [showThinking]);
+  
   // Handle project selection
   const handleSelectProject = () => {
     // For guest mode, redirect to login when trying to access projects
@@ -40,6 +50,8 @@ function GuestChatContent() {
   
   // Handle chat message submission
   const handleMessageSubmit = async (message: string) => {
+    console.log('[Debug] Message submission started:', message);
+    
     // Optimistic update for UI responsiveness
     const userMessage: MessageType = {
       id: Date.now().toString(),
@@ -48,9 +60,15 @@ function GuestChatContent() {
     };
     
     setMessages(prev => [...prev, userMessage]);
+    
+    // Set loading states immediately
     setIsLoading(true);
+    setShowThinking(true);
+    
+    console.log('[Debug] Loading states set to true, message added');
     
     try {
+      console.log('[Debug] Sending API request');
       const response = await fetch('/api/chat/guest', {
         method: 'POST',
         headers: {
@@ -66,6 +84,7 @@ function GuestChatContent() {
         throw new Error('Failed to send message');
       }
       
+      console.log('[Debug] API response received');
       const data = await response.json();
       
       // Add AI response
@@ -75,6 +94,7 @@ function GuestChatContent() {
         isUser: false
       };
       
+      console.log('[Debug] Adding AI response to messages');
       setMessages(prev => [...prev, aiMessage]);
       
       // If this is the first message, update the title
@@ -88,12 +108,27 @@ function GuestChatContent() {
       
       // If schema was updated, update it in the UI
       if (data.schema) {
+        console.log('[Debug] Updating schema');
         setSchema(data.schema);
       }
     } catch (err: any) {
+      console.error('[Debug] Error in message submission:', err);
       setError(err.message);
     } finally {
-      setIsLoading(false);
+      console.log('[Debug] Request complete, setting timeout for indicator');
+      
+      // Keep the thinking indicator for at least 1-2 seconds after response
+      // This prevents it from flickering and ensures users see the indicator
+      setTimeout(() => {
+        console.log('[Debug] Turning off thinking indicator');
+        setShowThinking(false);
+        
+        // Small extra delay before allowing new submissions
+        setTimeout(() => {
+          console.log('[Debug] Turning off loading state');
+          setIsLoading(false);
+        }, 250);
+      }, 1500); // Show the thinking indicator for at least 1.5 seconds
     }
   };
 
@@ -132,7 +167,12 @@ function GuestChatContent() {
                 <p className="mb-4">Your conversation will not be saved. Sign in to save your projects.</p>
               </div>
             ) : (
-              <ChatInterface initialMessages={messages} />
+              <ChatInterface
+                initialMessages={messages}
+                onSubmit={handleMessageSubmit}
+                isLoading={isLoading}
+                showThinking={showThinking}
+              />
             )}
           </div>
         </div>

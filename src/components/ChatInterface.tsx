@@ -8,12 +8,16 @@ interface ChatInterfaceProps {
   initialMessages?: MessageType[];
   onSubmit?: (message: string) => void | Promise<void>;
   projectId?: string;
+  isLoading?: boolean; // Add prop for external loading state
+  showThinking?: boolean; // Add prop for external thinking indicator state
 }
 
 export function ChatInterface({ 
   initialMessages = [], 
   onSubmit,
-  projectId 
+  projectId,
+  isLoading: externalIsLoading,
+  showThinking: externalShowThinking 
 }: ChatInterfaceProps) {
   const [allMessages, setAllMessages] = useState<MessageType[]>(initialMessages);
   const [visibleMessages, setVisibleMessages] = useState<MessageType[]>([]);
@@ -39,27 +43,44 @@ export function ChatInterface({
 
   // Add effect to log loading and typing states
   useEffect(() => {
-    console.log('Loading state changed:', isLoading);
+    console.log('ChatInterface internal loading state changed:', isLoading);
   }, [isLoading]);
 
   useEffect(() => {
-    console.log('Typing state changed:', isTyping);
+    console.log('ChatInterface typing state changed:', isTyping);
   }, [isTyping]);
+
+  // Monitor external loading and thinking states
+  useEffect(() => {
+    if (externalIsLoading !== undefined) {
+      console.log('External loading state changed:', externalIsLoading);
+    }
+  }, [externalIsLoading]);
+
+  useEffect(() => {
+    if (externalShowThinking !== undefined) {
+      console.log('External thinking state changed:', externalShowThinking);
+    }
+  }, [externalShowThinking]);
 
   // Log when component mounts with configuration state
   useEffect(() => {
     console.log('ChatInterface mounted with:', {
       hasExternalHandler: !!onSubmit,
       initialMessageCount: initialMessages.length,
-      projectId: projectId || 'none'
+      projectId: projectId || 'none',
+      hasExternalLoadingState: externalIsLoading !== undefined,
+      hasExternalThinkingState: externalShowThinking !== undefined
     });
     
-    // Test the typing indicator functionality
-    setIsTyping(true);
-    setTimeout(() => {
-      console.log('Initial typing indicator test complete');
-      setIsTyping(false);
-    }, 1000);
+    // Test the typing indicator functionality if no external states are provided
+    if (externalIsLoading === undefined && externalShowThinking === undefined) {
+      setIsTyping(true);
+      setTimeout(() => {
+        console.log('Initial typing indicator test complete');
+        setIsTyping(false);
+      }, 1000);
+    }
     
     return () => {
       console.log('ChatInterface unmounting');
@@ -92,49 +113,57 @@ export function ChatInterface({
         loadingTimerRef.current = null;
       }
       
-      // Show loading and typing indicators immediately
-      setIsLoading(true);
-      setIsTyping(true);
+      // When using external loading state, we only use internal state if external is not provided
+      if (externalIsLoading === undefined) {
+        // Show loading and typing indicators immediately
+        setIsLoading(true);
+        setIsTyping(true);
+      }
       
       // Call the provided submit handler
       try {
         const result = onSubmit(message);
         console.log('onSubmit result type:', result instanceof Promise ? 'Promise' : typeof result);
         
-        if (result instanceof Promise) {
-          // For Promise-based submissions
-          result
-            .then(() => {
-              console.log('Promise resolved, setting minimum display time');
-              // Ensure the typing indicator shows for at least 2 seconds
-              const minimumDisplayTime = 2000;
-              setTimeout(() => {
-                setIsTyping(false);
-                setIsLoading(false);
-              }, minimumDisplayTime);
-            })
-            .catch(error => {
-              console.error('Error in submission:', error);
-              // Even on error, ensure minimum display time
-              setTimeout(() => {
-                setIsTyping(false);
-                setIsLoading(false);
-              }, 2000);
-            });
-        } else {
-          // For non-Promise submissions, still ensure minimum display time
+        // Only handle internal state if external state is not provided
+        if (externalIsLoading === undefined) {
+          if (result instanceof Promise) {
+            // For Promise-based submissions
+            result
+              .then(() => {
+                console.log('Promise resolved, setting minimum display time');
+                // Ensure the typing indicator shows for at least 2 seconds
+                const minimumDisplayTime = 2000;
+                setTimeout(() => {
+                  setIsTyping(false);
+                  setIsLoading(false);
+                }, minimumDisplayTime);
+              })
+              .catch(error => {
+                console.error('Error in submission:', error);
+                // Even on error, ensure minimum display time
+                setTimeout(() => {
+                  setIsTyping(false);
+                  setIsLoading(false);
+                }, 2000);
+              });
+          } else {
+            // For non-Promise submissions, still ensure minimum display time
+            setTimeout(() => {
+              setIsTyping(false);
+              setIsLoading(false);
+            }, 2000);
+          }
+        }
+      } catch (error) {
+        console.error('Error calling onSubmit:', error);
+        // In case of synchronous error, ensure minimum display time
+        if (externalIsLoading === undefined) {
           setTimeout(() => {
             setIsTyping(false);
             setIsLoading(false);
           }, 2000);
         }
-      } catch (error) {
-        console.error('Error calling onSubmit:', error);
-        // In case of synchronous error, ensure minimum display time
-        setTimeout(() => {
-          setIsTyping(false);
-          setIsLoading(false);
-        }, 2000);
       }
       
       return;
@@ -188,6 +217,14 @@ export function ChatInterface({
     return "I've updated the database schema. Is there anything else you'd like to modify?";
   };
 
+  // Determine if we should show the typing indicator
+  // Priority: External thinking state > External loading state > Internal typing state
+  const shouldShowTypingIndicator = externalShowThinking !== undefined
+    ? externalShowThinking 
+    : externalIsLoading !== undefined
+      ? externalIsLoading && allMessages.length > 0 // Only show if there are messages
+      : isTyping;
+
   return (
     <div className="flex flex-col w-full flex-1">
       <div className="flex-1 px-4 relative overflow-y-auto">
@@ -195,9 +232,9 @@ export function ChatInterface({
           <ChatMessage key={message.id} message={message} />
         ))}
         
-        {isTyping && (
+        {shouldShowTypingIndicator && (
           <div className="mt-4 flex justify-start">
-            <div className="bg-white border border-gray-200 rounded-[18px] py-3 px-5 text-sm flex items-center shadow-sm">
+            <div className="bg-transparent py-2 px-4 text-sm flex items-center">
               <TypingIndicator />
             </div>
           </div>

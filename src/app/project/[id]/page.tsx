@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Layout } from '@/components/Layout';
 import { ChatInterface } from '@/components/ChatInterface';
 import { SchemaDisplay } from '@/components/SchemaDisplay';
@@ -21,11 +21,21 @@ export default function ProjectPage() {
   const projectId = params.id as string;
   
   const [isLoading, setIsLoading] = useState(true);
+  const [showThinking, setShowThinking] = useState(false); // Added state for thinking indicator
   const [projectTitle, setProjectTitle] = useState('Loading...');
   const [messages, setMessages] = useState<MessageType[]>([]);
   const [schema, setSchema] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingSchema, setIsGeneratingSchema] = useState(false);
+  
+  // Debug logging for AI thinking indicator states
+  useEffect(() => {
+    console.log('[Debug] isLoading state changed:', isLoading);
+  }, [isLoading]);
+
+  useEffect(() => {
+    console.log('[Debug] showThinking state changed:', showThinking);
+  }, [showThinking]);
   
   // Fetch project data
   useEffect(() => {
@@ -101,7 +111,7 @@ export default function ProjectPage() {
   
   // Handle chat message submission
   const handleMessageSubmit = async (message: string) => {
-    console.log('Message received in project page handler:', message);
+    console.log('[Debug] Message received in project page handler:', message);
     
     // Check if the message is asking to generate a schema
     const isSchemaGenerationRequest = /generate.*schema|create.*schema|show.*schema|build.*schema|make.*schema/i.test(message);
@@ -120,13 +130,16 @@ export default function ProjectPage() {
     
     setMessages(prev => [...prev, userMessage]);
     
+    // Set loading states immediately to show the thinking indicator
+    setIsLoading(true);
+    setShowThinking(true);
+    
+    console.log('[Debug] Loading states set to true, message added');
+    
     // Return a Promise explicitly to ensure loading state works properly
     return new Promise<void>(async (resolve, reject) => {
       try {
-        console.log('Starting API fetch for message:', message);
-        
-        // Add artificial delay before the fetch to ensure indicator is visible
-        await new Promise(r => setTimeout(r, 500));
+        console.log('[Debug] Starting API fetch for message:', message);
         
         const response = await fetch(`/api/chat/${projectId}`, {
           method: 'POST',
@@ -142,8 +155,8 @@ export default function ProjectPage() {
           throw new Error('Failed to send message');
         }
         
+        console.log('[Debug] Response received, processing data');
         const data = await response.json();
-        console.log('Response received, adding AI message');
         
         // Add AI response
         const aiMessage: MessageType = {
@@ -152,13 +165,12 @@ export default function ProjectPage() {
           isUser: false
         };
         
-        // Ensure minimum typing time of at least 1 second after receiving response
-        await new Promise(r => setTimeout(r, 1000));
-        
+        console.log('[Debug] Adding AI response to messages');
         setMessages(prev => [...prev, aiMessage]);
         
         // If schema was updated, update it in the UI
         if (data.schema) {
+          console.log('[Debug] Updating schema');
           // End the schema generation state
           setIsGeneratingSchema(false);
           // Update the schema with the new one
@@ -168,20 +180,40 @@ export default function ProjectPage() {
           setIsGeneratingSchema(false);
         }
         
-        console.log('Message processing complete, resolving promise');
-        // Successfully processed the message
-        resolve();
+        console.log('[Debug] Message processing complete, setting timeout for indicator');
+        
+        // Keep the thinking indicator visible for at least 1.5 seconds
+        setTimeout(() => {
+          console.log('[Debug] Turning off thinking indicator');
+          setShowThinking(false);
+          
+          // Small extra delay before allowing new submissions
+          setTimeout(() => {
+            console.log('[Debug] Turning off loading state');
+            setIsLoading(false);
+          }, 250);
+          
+          resolve();
+        }, 1500);
       } catch (err: any) {
-        console.error('Error processing message:', err);
+        console.error('[Debug] Error processing message:', err);
         setError(err.message);
         
         // Even on error, end the schema generation state
         setIsGeneratingSchema(false);
         
-        // Even on error, ensure minimum typing time
-        await new Promise(r => setTimeout(r, 1000));
-        
-        reject(err);
+        // Keep the thinking indicator visible for at least 1.5 seconds even on error
+        setTimeout(() => {
+          console.log('[Debug] Turning off thinking indicator (after error)');
+          setShowThinking(false);
+          
+          setTimeout(() => {
+            console.log('[Debug] Turning off loading state (after error)');
+            setIsLoading(false);
+          }, 250);
+          
+          reject(err);
+        }, 1500);
       }
     });
   };
@@ -228,7 +260,7 @@ export default function ProjectPage() {
           
           {/* Chat Interface - below schema */}
           <div className="w-full max-w-3xl mx-auto flex-1 flex flex-col pt-0 pb-6">
-            {isLoading ? (
+            {isLoading && messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900 mb-4"></div>
                 <h2 className="text-xl font-medium mb-2">Loading project...</h2>
@@ -241,17 +273,19 @@ export default function ProjectPage() {
                 initialMessages={messages} 
                 onSubmit={handleMessageSubmit}
                 projectId={projectId}
+                isLoading={isLoading}
+                showThinking={showThinking}
               />
             )}
           </div>
         </div>
         
         {/* Fixed input bar at the bottom */}
-        {!isLoading && (
+        {!isLoading || messages.length > 0 ? (
           <div className="w-full px-4 max-w-3xl mx-auto fixed bottom-4 left-0 right-0 z-10">
-            <InputBar onSubmit={handleMessageSubmit} disabled={isLoading || isGeneratingSchema} />
+            <InputBar onSubmit={handleMessageSubmit} disabled={isLoading} />
           </div>
-        )}
+        ) : null}
       </div>
     </Layout>
   );
