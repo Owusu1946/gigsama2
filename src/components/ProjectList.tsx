@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthContext';
 import Image from 'next/image';
 import Link from 'next/link';
+import useSWR, { mutate } from 'swr';
 
 // Define project type
 interface Project {
@@ -117,26 +118,75 @@ export const DeleteConfirmationModal = ({
   );
 };
 
-export function ProjectList({ projects, onNewProject, onSelectProject, onProjectDeleted, isLoading = false }: ProjectListProps) {
+// Custom projects fetcher with caching
+const fetchProjects = async () => {
+  // Use sessionStorage for super-fast subsequent loads
+  const cachedData = sessionStorage.getItem('cachedProjects');
+  const cachedTime = sessionStorage.getItem('cachedProjectsTime');
+  const now = Date.now();
+  
+  // If we have fresh cached data (less than 30 seconds old), use it immediately
+  if (cachedData && cachedTime && now - parseInt(cachedTime) < 30000) {
+    return JSON.parse(cachedData);
+  }
+  
+  // Otherwise fetch new data
+  const response = await fetch('/api/projects', {
+    method: 'GET',
+    headers: {
+      'Cache-Control': 'no-cache',
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch projects');
+  }
+  
+  const data = await response.json();
+  
+  // Cache the new data
+  sessionStorage.setItem('cachedProjects', JSON.stringify(data));
+  sessionStorage.setItem('cachedProjectsTime', now.toString());
+  
+  return data;
+};
+
+export function ProjectList({ projects: initialProjects, onNewProject, onSelectProject, onProjectDeleted, isLoading: initialLoading = false }: ProjectListProps) {
+  const router = useRouter();
+  const { user } = useAuth();
+  
+  // Using SWR for data fetching with the cached initialProjects as fallback
+  const { data: fetchedProjects, error, isLoading: swrLoading, isValidating, mutate: refreshProjects } = useSWR(
+    user ? '/api/projects' : null, // Only fetch if user is logged in
+    fetchProjects,
+    {
+      fallbackData: initialProjects,
+      revalidateOnFocus: false, // Don't revalidate on window focus
+      revalidateIfStale: true,
+      revalidateOnMount: initialProjects.length === 0, // Only revalidate on mount if we don't have initial data
+      dedupingInterval: 2000, // Dedupe requests within 2 seconds
+    }
+  );
+  
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteSuccess, setDeleteSuccess] = useState(false);
-  const [localProjects, setLocalProjects] = useState<Project[]>(projects);
+  const [localProjects, setLocalProjects] = useState<Project[]>(initialProjects);
   const listRef = useRef<HTMLDivElement>(null);
   const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const router = useRouter();
-  const { user } = useAuth();
   const [showScrollIndicators, setShowScrollIndicators] = useState({
     top: false,
     bottom: false
   });
-
-  // Update local projects when props change
+  
+  // Update local projects when fetched projects change
   useEffect(() => {
-    setLocalProjects(projects);
-  }, [projects]);
+    if (fetchedProjects) {
+      setLocalProjects(fetchedProjects);
+    }
+  }, [fetchedProjects]);
 
   // Clean up any timeouts when component unmounts
   useEffect(() => {
@@ -265,6 +315,16 @@ export function ProjectList({ projects, onNewProject, onSelectProject, onProject
         prevProjects.filter(project => project.id !== projectToDelete.id)
       );
       
+      // Also update the SWR cache
+      refreshProjects(
+        (currentData: Project[] | undefined) => 
+          currentData ? currentData.filter(project => project.id !== projectToDelete.id) : [],
+        false // Don't revalidate immediately
+      );
+      
+      // Clear the session storage cache to force a refresh on next page load
+      sessionStorage.removeItem('cachedProjects');
+      
       // Notify parent component about deletion if callback is provided
       if (onProjectDeleted) {
         onProjectDeleted(projectToDelete.id);
@@ -274,11 +334,6 @@ export function ProjectList({ projects, onNewProject, onSelectProject, onProject
       deleteTimeoutRef.current = setTimeout(() => {
         setShowDeleteConfirm(false);
         setDeleteLoading(false);
-        
-        // Still refresh the router for complete state sync, but UI is already updated
-        setTimeout(() => {
-          router.refresh();
-        }, 300);
       }, 1000);
       
     } catch (error) {
@@ -298,17 +353,9 @@ export function ProjectList({ projects, onNewProject, onSelectProject, onProject
 
   // Check if we have an auth message
   const hasAuthMessage = localProjects.some(project => project.isAuthMessage);
-
-  // Function to update scroll indicators
-  const handleScroll = () => {
-    if (listRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = listRef.current;
-      setShowScrollIndicators({
-        top: scrollTop > 0,
-        bottom: scrollTop + clientHeight < scrollHeight - 5 && localProjects.length > 4
-      });
-    }
-  };
+  
+  // Determine the actual loading state (either initial loading or SWR loading)
+  const isLoading = initialLoading || (swrLoading && !fetchedProjects);
 
   return (
     <div className="fixed inset-0 bg-white z-10 pt-16 flex flex-col items-center menu-overlay">
@@ -416,6 +463,13 @@ export function ProjectList({ projects, onNewProject, onSelectProject, onProject
                   )}
                 </div>
               ))}
+              
+              {/* Small validation indicator if data is being refreshed */}
+              {isValidating && !isLoading && (
+                <div className="absolute top-0 right-0 p-1">
+                  <div className="h-2 w-2 bg-blue-500 rounded-full animate-pulse"></div>
+                </div>
+              )}
             </div>
             
             {/* Bottom scroll indicator */}
