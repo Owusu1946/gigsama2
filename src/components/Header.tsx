@@ -5,12 +5,14 @@ import Image from 'next/image';
 import { ProjectList } from './ProjectList';
 import { ProfileModal } from './ProfileModal';
 import { useRouter } from 'next/navigation';
+import { useAuth } from './AuthContext';
 
 // Define Project interface to match the one used in ProjectList
 interface Project {
   id: string;
   title: string;
   isHighlighted?: boolean;
+  isAuthMessage?: boolean;
 }
 
 interface HeaderProps {
@@ -19,16 +21,9 @@ interface HeaderProps {
   onSelectProject?: (project: Project) => void;
 }
 
-// Sample user data
-const sampleUserData = {
-  name: 'Alex Johnson',
-  email: 'alex@example.com',
-  role: 'Developer',
-  joinDate: 'Jan 15, 2024',
-};
-
 export function Header({ projectTitle = null, onProjectTitleChange, onSelectProject }: HeaderProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(projectTitle || '');
@@ -36,6 +31,9 @@ export function Header({ projectTitle = null, onProjectTitleChange, onSelectProj
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Check if user is in guest mode (projectTitle exists but user is not authenticated)
+  const isGuestMode = !user && projectTitle && projectTitle.includes('(Guest)');
 
   // Fetch projects when menu opens
   useEffect(() => {
@@ -49,6 +47,19 @@ export function Header({ projectTitle = null, onProjectTitleChange, onSelectProj
     try {
       setIsLoading(true);
       const response = await fetch('/api/projects');
+      
+      // Handle authentication required response
+      if (response.status === 401) {
+        console.log('Authentication required for projects');
+        // Set empty projects list with a special "auth required" message
+        setProjects([{
+          id: 'auth-required',
+          title: 'Please log in or sign up to view your projects',
+          isAuthMessage: true
+        }]);
+        setIsLoading(false);
+        return;
+      }
       
       if (!response.ok) {
         throw new Error('Failed to fetch projects');
@@ -65,6 +76,8 @@ export function Header({ projectTitle = null, onProjectTitleChange, onSelectProj
       setProjects(highlightedProjects);
     } catch (error) {
       console.error('Error fetching projects:', error);
+      // On error, show empty state
+      setProjects([]);
     } finally {
       setIsLoading(false);
     }
@@ -141,6 +154,14 @@ export function Header({ projectTitle = null, onProjectTitleChange, onSelectProj
     setEditedTitle(e.target.value);
   };
 
+  const handleAuthAction = () => {
+    if (!user) {
+      router.push('/login');
+    } else {
+      toggleProfileModal();
+    }
+  };
+
   return (
     <>
       <header className="flex items-center justify-between px-6 py-2.5 border-b border-[#e5e7eb] relative z-20">
@@ -177,6 +198,19 @@ export function Header({ projectTitle = null, onProjectTitleChange, onSelectProj
           </div>
         )}
         
+        {/* Guest mode notification */}
+        {isGuestMode && (
+          <div className="absolute left-1/2 -translate-x-1/2 top-12 bg-blue-50 text-black-700 px-4 py-1 rounded-full text-xs font-medium flex items-center gap-1">
+            <span>Guest Mode</span>
+            <button 
+              onClick={() => router.push('/login')}
+              className="bg-gray-700 text-white text-xs px-2 py-0.5 rounded-full hover:bg-black-800 ml-2"
+            >
+              Sign in to save
+            </button>
+          </div>
+        )}
+        
         <div className="flex items-center">
           <button 
             className="flex items-center justify-center mr-2 w-8 h-8" 
@@ -197,11 +231,17 @@ export function Header({ projectTitle = null, onProjectTitleChange, onSelectProj
             )}
           </button>
           <button 
-            className="w-8 h-8 rounded-full overflow-hidden bg-[#4F46E5] flex items-center justify-center text-white text-sm font-medium"
-            onClick={toggleProfileModal}
-            aria-label="Open profile"
+            className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center"
+            onClick={handleAuthAction}
+            aria-label={user ? 'Open profile' : 'Sign in'}
           >
-            {sampleUserData.name.charAt(0)}
+            <Image 
+              src="/avatar-placeholder.svg" 
+              alt={user ? `${user.name}'s profile` : "Sign in"}
+              width={32}
+              height={32}
+              className="object-cover w-full h-full"
+            />
           </button>
         </div>
       </header>
@@ -220,7 +260,6 @@ export function Header({ projectTitle = null, onProjectTitleChange, onSelectProj
       <ProfileModal 
         isOpen={isProfileModalOpen} 
         onClose={toggleProfileModal} 
-        userData={sampleUserData} 
       />
     </>
   );

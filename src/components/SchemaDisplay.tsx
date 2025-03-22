@@ -3,11 +3,14 @@
 import React, { useState } from 'react';
 import { Schema, SchemaTable, SchemaField } from '@/lib/db';
 import { Modal } from './Modal';
+import { ShareSchema } from './ShareSchema';
 
 interface SchemaDisplayProps {
   isVisible: boolean;
   schema?: Schema | null;
   isGenerating?: boolean;
+  projectId?: string;
+  readOnly?: boolean;
 }
 
 // Define relationship type
@@ -18,10 +21,10 @@ interface TableRelationship {
   toField: string;
 }
 
-export function SchemaDisplay({ isVisible, schema, isGenerating = false }: SchemaDisplayProps) {
+export function SchemaDisplay({ isVisible, schema, isGenerating = false, projectId, readOnly = false }: SchemaDisplayProps) {
   const [showModal, setShowModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [isGeneratingSchema, setIsGeneratingSchema] = useState(false);
   
   // Function to copy SQL code to clipboard
   const copyToClipboard = () => {
@@ -111,7 +114,7 @@ export function SchemaDisplay({ isVisible, schema, isGenerating = false }: Schem
   const relationships = getRelationships();
   
   // Show "Generating Schema" message when generation is in progress
-  if (isGeneratingSchema) {
+  if (isGenerating) {
     return (
       <div className="flex justify-center items-center py-8">
         <div className="text-center">
@@ -135,8 +138,21 @@ export function SchemaDisplay({ isVisible, schema, isGenerating = false }: Schem
             {schema.type === 'sql' ? 'SQL Schema' : 'NoSQL Schema'}
           </div>
           
-          <div className="text-xs text-gray-500">
-            {schema.tables.length} {schema.tables.length === 1 ? 'table' : 'tables'}
+          <div className="flex items-center gap-2">
+            {!readOnly && projectId && (
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors flex items-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+                Share
+              </button>
+            )}
+            <div className="text-xs text-gray-500">
+              {schema.tables.length} {schema.tables.length === 1 ? 'table' : 'tables'}
+            </div>
           </div>
         </div>
         
@@ -171,8 +187,8 @@ export function SchemaDisplay({ isVisible, schema, isGenerating = false }: Schem
           ))}
         </div>
         
-        {/* SQL Code Button */}
-        {schema.code && (
+        {/* SQL Code Button - Only show when not in read-only mode */}
+        {schema.code && !readOnly && (
           <div className="mt-6 flex justify-center">
             <button
               onClick={() => setShowModal(true)}
@@ -301,6 +317,15 @@ export function SchemaDisplay({ isVisible, schema, isGenerating = false }: Schem
             </pre>
           </div>
         </Modal>
+        
+        {/* Share Schema Modal */}
+        {projectId && (
+          <ShareSchema 
+            isOpen={showShareModal} 
+            onClose={() => setShowShareModal(false)} 
+            projectId={projectId} 
+          />
+        )}
       </div>
     </div>
   );

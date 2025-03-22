@@ -61,6 +61,14 @@ export default function Home() {
         }),
       });
       
+      // Check for 401 Unauthorized status
+      if (response.status === 401) {
+        // Redirect to guest chat page with the query as a parameter
+        console.log('User not authenticated - redirecting to guest chat page');
+        router.push(`/guest?query=${encodeURIComponent(value)}`);
+        return;
+      }
+      
       if (!response.ok) {
         throw new Error('Failed to create project');
       }
@@ -91,6 +99,10 @@ export default function Home() {
       
     } catch (error) {
       console.error('Error creating project and starting conversation:', error);
+      
+      // Reset loading state
+      setIsLoading(false);
+      setShowTransition(false);
       
       // Create the first message pair for fallback behavior
       const firstUserMessage: MessageType = {
@@ -223,6 +235,59 @@ export default function Home() {
     return message;
   };
 
+  // Handle message submission after conversation has started
+  const handleChatSubmit = async (message: string) => {
+    console.log('Message received in home page chat handler:', message);
+    
+    // Return a Promise explicitly to ensure loading state works properly
+    return new Promise<void>(async (resolve) => {
+      // Add user message immediately for better UX
+      const userMessage: MessageType = {
+        id: Date.now().toString(),
+        content: message,
+        isUser: true
+      };
+      
+      setInitialMessages(prev => [...prev, userMessage]);
+      
+      // Simulate processing time to ensure typing indicator is visible
+      console.log('Simulating processing time for typing indicator');
+      
+      // Minimum processing time of 2.5 seconds to ensure the typing indicator is visible
+      const minimumProcessingTime = 2500;
+      const startTime = Date.now();
+      
+      try {
+        // Simulate AI thinking/processing
+        await new Promise(r => setTimeout(r, minimumProcessingTime));
+        
+        console.log('Processing complete, adding AI response');
+        
+        const aiMessage: MessageType = {
+          id: (Date.now() + 1).toString(),
+          content: generateInitialResponse(message),
+          isUser: false
+        };
+        
+        setInitialMessages(prev => [...prev, aiMessage]);
+        console.log('AI response added, resolving promise');
+        resolve();
+      } catch (error) {
+        console.error('Error in chat processing:', error);
+        
+        // Even on error, ensure minimum processing time
+        const elapsed = Date.now() - startTime;
+        const remainingTime = Math.max(0, minimumProcessingTime - elapsed);
+        
+        if (remainingTime > 0) {
+          await new Promise(r => setTimeout(r, remainingTime));
+        }
+        
+        resolve();
+      }
+    });
+  };
+
   return (
     <Layout 
       conversationSummary={isConversationStarted ? conversationSummary : null}
@@ -266,12 +331,15 @@ export default function Home() {
           
             {/* Chat Interface - below schema */}
             <div className="w-full max-w-3xl mx-auto flex-1 flex flex-col pt-0 pb-6">
-              <ChatInterface initialMessages={initialMessages} />
+              <ChatInterface 
+                initialMessages={initialMessages} 
+                onSubmit={handleChatSubmit}
+              />
             </div>
           </div>
           
           <div className="w-full px-4 max-w-3xl mx-auto fixed bottom-4 left-0 right-0 z-10">
-            <InputBar onSubmit={handleInitialSubmit} disabled={isLoading} />
+            <InputBar onSubmit={handleChatSubmit} disabled={isLoading} />
           </div>
         </div>
       )}

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, MessageType } from './ChatMessage';
+import { TypingIndicator } from './TypingIndicator';
 
 interface ChatInterfaceProps {
   initialMessages?: MessageType[];
@@ -17,12 +18,14 @@ export function ChatInterface({
   const [allMessages, setAllMessages] = useState<MessageType[]>(initialMessages);
   const [visibleMessages, setVisibleMessages] = useState<MessageType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const loadingTimerRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Scroll to bottom whenever messages change
+  // Scroll to bottom whenever messages change or typing status changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [visibleMessages]);
+  }, [visibleMessages, isTyping]);
   
   useEffect(() => {
     // Update all messages when initialMessages changes
@@ -34,8 +37,43 @@ export function ChatInterface({
     setVisibleMessages(allMessages.slice(-2));
   }, [allMessages]);
 
+  // Add effect to log loading and typing states
+  useEffect(() => {
+    console.log('Loading state changed:', isLoading);
+  }, [isLoading]);
+
+  useEffect(() => {
+    console.log('Typing state changed:', isTyping);
+  }, [isTyping]);
+
+  // Log when component mounts with configuration state
+  useEffect(() => {
+    console.log('ChatInterface mounted with:', {
+      hasExternalHandler: !!onSubmit,
+      initialMessageCount: initialMessages.length,
+      projectId: projectId || 'none'
+    });
+    
+    // Test the typing indicator functionality
+    setIsTyping(true);
+    setTimeout(() => {
+      console.log('Initial typing indicator test complete');
+      setIsTyping(false);
+    }, 1000);
+    
+    return () => {
+      console.log('ChatInterface unmounting');
+      // Clear any timers
+      if (loadingTimerRef.current) {
+        clearTimeout(loadingTimerRef.current);
+      }
+    };
+  }, []);
+
   // Function to add a message - will be called by the parent component
   const addMessage = (message: string) => {
+    console.log('Message submitted:', message);
+    
     // If external handler is provided, use it
     if (onSubmit) {
       // Add user message immediately for better UX
@@ -48,25 +86,61 @@ export function ChatInterface({
       // Update local state for immediate feedback
       setAllMessages(prev => [...prev, userMessage]);
       
-      // Show loading state
+      // Clear any existing timer
+      if (loadingTimerRef.current) {
+        clearTimeout(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
+      
+      // Show loading and typing indicators immediately
       setIsLoading(true);
+      setIsTyping(true);
       
       // Call the provided submit handler
-      const result = onSubmit(message);
-      if (result instanceof Promise) {
-        result.finally(() => {
-          // Remove loading state
+      try {
+        const result = onSubmit(message);
+        console.log('onSubmit result type:', result instanceof Promise ? 'Promise' : typeof result);
+        
+        if (result instanceof Promise) {
+          // For Promise-based submissions
+          result
+            .then(() => {
+              console.log('Promise resolved, setting minimum display time');
+              // Ensure the typing indicator shows for at least 2 seconds
+              const minimumDisplayTime = 2000;
+              setTimeout(() => {
+                setIsTyping(false);
+                setIsLoading(false);
+              }, minimumDisplayTime);
+            })
+            .catch(error => {
+              console.error('Error in submission:', error);
+              // Even on error, ensure minimum display time
+              setTimeout(() => {
+                setIsTyping(false);
+                setIsLoading(false);
+              }, 2000);
+            });
+        } else {
+          // For non-Promise submissions, still ensure minimum display time
+          setTimeout(() => {
+            setIsTyping(false);
+            setIsLoading(false);
+          }, 2000);
+        }
+      } catch (error) {
+        console.error('Error calling onSubmit:', error);
+        // In case of synchronous error, ensure minimum display time
+        setTimeout(() => {
+          setIsTyping(false);
           setIsLoading(false);
-        });
-      } else {
-        // If it's not a Promise, just set loading to false
-        setIsLoading(false);
+        }, 2000);
       }
       
       return;
     }
     
-    // Default behavior if no external handler is provided (for backward compatibility)
+    // Default behavior if no external handler is provided
     const userMessage: MessageType = {
       id: Date.now().toString(),
       content: message,
@@ -76,19 +150,22 @@ export function ChatInterface({
     const updatedMessages = [...allMessages, userMessage];
     setAllMessages(updatedMessages);
     
-    // Show loading state
+    // Show typing indicator
+    setIsTyping(true);
     setIsLoading(true);
     
-    // Simulate AI response after a short delay
+    // Simulate AI response with minimum display time
     setTimeout(() => {
+      setIsTyping(false);
       setIsLoading(false);
+      
       const aiMessage: MessageType = {
         id: (Date.now() + 1).toString(),
         content: generateAIResponse(message),
         isUser: false
       };
       setAllMessages(prevMessages => [...prevMessages, aiMessage]);
-    }, 700); // Faster response time for better UX
+    }, 2000); // Minimum display time of 2 seconds
   };
   
   // Simple function to simulate AI responses (used only when no external handler is provided)
@@ -118,12 +195,10 @@ export function ChatInterface({
           <ChatMessage key={message.id} message={message} />
         ))}
         
-        {isLoading && (
+        {isTyping && (
           <div className="mt-4 flex justify-start">
-            <div className="bg-white rounded-[18px] py-2 px-4 text-sm flex items-center">
-              <span className="inline-block h-2 w-2 bg-gray-500 rounded-full animate-pulse mr-1"></span>
-              <span className="inline-block h-2 w-2 bg-gray-500 rounded-full animate-pulse delay-150 mr-1"></span>
-              <span className="inline-block h-2 w-2 bg-gray-500 rounded-full animate-pulse delay-300"></span>
+            <div className="bg-white border border-gray-200 rounded-[18px] py-3 px-5 text-sm flex items-center shadow-sm">
+              <TypingIndicator />
             </div>
           </div>
         )}

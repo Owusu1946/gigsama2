@@ -37,6 +37,14 @@ export interface SchemaField {
   };
 }
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  password: string; // This will store hashed password
+  createdAt: number;
+}
+
 export interface Project {
   id: string;
   title: string;
@@ -44,6 +52,59 @@ export interface Project {
   updatedAt: number;
   messages: Message[];
   schema?: Schema;
+  userId?: string; // Associate projects with users
+}
+
+// User-related functions
+export async function getUserByEmail(email: string): Promise<User | null> {
+  try {
+    const users = await redis.get('users') as User[] || [];
+    return users.find(user => user.email === email) || null;
+  } catch (error) {
+    console.error('Error getting user by email:', error);
+    return null;
+  }
+}
+
+export async function getUserById(id: string): Promise<User | null> {
+  try {
+    const users = await redis.get('users') as User[] || [];
+    return users.find(user => user.id === id) || null;
+  } catch (error) {
+    console.error('Error getting user by id:', error);
+    return null;
+  }
+}
+
+export async function createUser(userData: Omit<User, 'id' | 'createdAt'>): Promise<User> {
+  try {
+    const users = await redis.get('users') as User[] || [];
+    
+    const newUser: User = {
+      id: nanoid(),
+      ...userData,
+      createdAt: Date.now()
+    };
+    
+    users.push(newUser);
+    await redis.set('users', users);
+    
+    return newUser;
+  } catch (error) {
+    console.error('Error creating user:', error);
+    throw new Error('Failed to create user');
+  }
+}
+
+// Get all projects for a specific user
+export async function getUserProjects(userId: string): Promise<Project[]> {
+  try {
+    const projects = await redis.get('projects') as Project[] || [];
+    return projects.filter(project => project.userId === userId);
+  } catch (error) {
+    console.error('Error getting projects for user:', error);
+    return [];
+  }
 }
 
 // Get all projects
@@ -64,7 +125,7 @@ export async function getProject(id: string): Promise<Project | null> {
 }
 
 // Create a new project
-export async function createProject(title: string = 'New Project'): Promise<Project> {
+export async function createProject(title: string = 'New Project', userId?: string): Promise<Project> {
   const projects = await getProjects();
   
   const newProject: Project = {
@@ -72,7 +133,8 @@ export async function createProject(title: string = 'New Project'): Promise<Proj
     title,
     createdAt: Date.now(),
     updatedAt: Date.now(),
-    messages: []
+    messages: [],
+    userId // Associate the project with a user if provided
   };
   
   projects.push(newProject);

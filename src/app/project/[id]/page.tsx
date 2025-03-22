@@ -25,6 +25,7 @@ export default function ProjectPage() {
   const [messages, setMessages] = useState<MessageType[]>([]);
   const [schema, setSchema] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isGeneratingSchema, setIsGeneratingSchema] = useState(false);
   
   // Fetch project data
   useEffect(() => {
@@ -37,6 +38,10 @@ export default function ProjectPage() {
         if (!response.ok) {
           if (response.status === 404) {
             router.push('/');
+            return;
+          } else if (response.status === 401) {
+            // Redirect to login if unauthorized
+            router.push(`/login?redirect=/project/${projectId}`);
             return;
           }
           throw new Error('Failed to fetch project');
@@ -96,6 +101,16 @@ export default function ProjectPage() {
   
   // Handle chat message submission
   const handleMessageSubmit = async (message: string) => {
+    console.log('Message received in project page handler:', message);
+    
+    // Check if the message is asking to generate a schema
+    const isSchemaGenerationRequest = /generate.*schema|create.*schema|show.*schema|build.*schema|make.*schema/i.test(message);
+    
+    // If it's a schema generation request, set the generating state to true
+    if (isSchemaGenerationRequest) {
+      setIsGeneratingSchema(true);
+    }
+    
     // Optimistic update for UI responsiveness
     const userMessage: MessageType = {
       id: Date.now().toString(),
@@ -105,37 +120,70 @@ export default function ProjectPage() {
     
     setMessages(prev => [...prev, userMessage]);
     
-    try {
-      const response = await fetch(`/api/chat/${projectId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ message }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to send message');
+    // Return a Promise explicitly to ensure loading state works properly
+    return new Promise<void>(async (resolve, reject) => {
+      try {
+        console.log('Starting API fetch for message:', message);
+        
+        // Add artificial delay before the fetch to ensure indicator is visible
+        await new Promise(r => setTimeout(r, 500));
+        
+        const response = await fetch(`/api/chat/${projectId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ message }),
+          // Disable caching to ensure fresh responses
+          cache: 'no-store',
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to send message');
+        }
+        
+        const data = await response.json();
+        console.log('Response received, adding AI message');
+        
+        // Add AI response
+        const aiMessage: MessageType = {
+          id: (Date.now() + 1).toString(),
+          content: data.response,
+          isUser: false
+        };
+        
+        // Ensure minimum typing time of at least 1 second after receiving response
+        await new Promise(r => setTimeout(r, 1000));
+        
+        setMessages(prev => [...prev, aiMessage]);
+        
+        // If schema was updated, update it in the UI
+        if (data.schema) {
+          // End the schema generation state
+          setIsGeneratingSchema(false);
+          // Update the schema with the new one
+          setSchema(data.schema);
+        } else if (isSchemaGenerationRequest) {
+          // If it was a schema request but no schema was returned, still end the generating state
+          setIsGeneratingSchema(false);
+        }
+        
+        console.log('Message processing complete, resolving promise');
+        // Successfully processed the message
+        resolve();
+      } catch (err: any) {
+        console.error('Error processing message:', err);
+        setError(err.message);
+        
+        // Even on error, end the schema generation state
+        setIsGeneratingSchema(false);
+        
+        // Even on error, ensure minimum typing time
+        await new Promise(r => setTimeout(r, 1000));
+        
+        reject(err);
       }
-      
-      const data = await response.json();
-      
-      // Add AI response
-      const aiMessage: MessageType = {
-        id: (Date.now() + 1).toString(),
-        content: data.response,
-        isUser: false
-      };
-      
-      setMessages(prev => [...prev, aiMessage]);
-      
-      // If schema was updated, update it in the UI
-      if (data.schema) {
-        setSchema(data.schema);
-      }
-    } catch (err: any) {
-      setError(err.message);
-    }
+    });
   };
 
   if (error) {
@@ -170,7 +218,12 @@ export default function ProjectPage() {
           `}</style>
           {/* Schema display at the top */}
           <div className="w-full max-w-5xl mx-auto">
-            <SchemaDisplay isVisible={true} schema={schema} />
+            <SchemaDisplay 
+              isVisible={true} 
+              schema={schema} 
+              projectId={projectId} 
+              isGenerating={isGeneratingSchema}
+            />
           </div>
           
           {/* Chat Interface - below schema */}
@@ -196,7 +249,7 @@ export default function ProjectPage() {
         {/* Fixed input bar at the bottom */}
         {!isLoading && (
           <div className="w-full px-4 max-w-3xl mx-auto fixed bottom-4 left-0 right-0 z-10">
-            <InputBar onSubmit={handleMessageSubmit} disabled={isLoading} />
+            <InputBar onSubmit={handleMessageSubmit} disabled={isLoading || isGeneratingSchema} />
           </div>
         )}
       </div>
