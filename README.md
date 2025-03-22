@@ -4,6 +4,8 @@ An innovative, production-ready web application that transforms database design 
 
 **🔗 Live Demo:** [https://keymap-drab.vercel.app](https://keymap-drab.vercel.app)
 
+** Clear comments to ensure my thought process in bug fixes, enhancements etc. (Gigsama)
+
 ## Key Features
 
 - **Groundbreaking Guest Mode:** Instantly start designing database schemas without signing up, just like ChatGPT's guest experience
