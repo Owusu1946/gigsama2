@@ -21,11 +21,12 @@ interface TableRelationship {
 export function SchemaDisplay({ isVisible, schema, isGenerating = false }: SchemaDisplayProps) {
   const [showModal, setShowModal] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isGeneratingSchema, setIsGeneratingSchema] = useState(false);
   
   // Function to copy SQL code to clipboard
   const copyToClipboard = () => {
     if (schema?.code) {
-      navigator.clipboard.writeText(schema.code);
+      navigator.clipboard.writeText(schema.code.replace(/\\n/g, '\n'));
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -109,7 +110,23 @@ export function SchemaDisplay({ isVisible, schema, isGenerating = false }: Schem
   
   const relationships = getRelationships();
   
-  // Display the actual schema
+  // Show "Generating Schema" message when generation is in progress
+  if (isGeneratingSchema) {
+    return (
+      <div className="flex justify-center items-center py-8">
+        <div className="text-center">
+          <div className="animate-pulse text-xl font-medium mb-2">Generating Schema</div>
+          <div className="flex justify-center space-x-2">
+            <div className="h-2 w-2 bg-gray-400 rounded-full animate-bounce"></div>
+            <div className="h-2 w-2 bg-gray-400 rounded-full animate-bounce delay-75"></div>
+            <div className="h-2 w-2 bg-gray-400 rounded-full animate-bounce delay-150"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Show the actual schema when it's not generating and schema exists
   return (
     <div className="w-full py-8 px-4">
       <div className="bg-white rounded-lg p-4 overflow-x-auto">
@@ -126,14 +143,14 @@ export function SchemaDisplay({ isVisible, schema, isGenerating = false }: Schem
         <div className="flex flex-wrap gap-6">
           {schema.tables.map((table: SchemaTable) => (
             <div key={table.name} className="border rounded-lg overflow-hidden shadow-s border-white">
-              <div className="py-3 px-4 bg-gray-50 font-medium text-sm border-w border-white">
-                {table.name}
-              </div>
-              <table className="w-full text-sm">
-                <tbody>
+            <div className="py-3 px-4 bg-gray-50 font-medium text-sm border-w border-white">
+                {table.name.replace(/\\n/g, '')}
+            </div>
+            <table className="w-full text-sm">
+              <tbody>
                   {table.fields.map((field: SchemaField, index: number) => (
                     <tr 
-                      key={`${table.name}-${field.name}`} 
+                      key={`${table.name}-${field.name}-${index}`} 
                       className={index < table.fields.length - 1 ? "border-w border-white" : ""}
                     >
                       <td className="px-4 py-2 flex items-center">
@@ -143,13 +160,13 @@ export function SchemaDisplay({ isVisible, schema, isGenerating = false }: Schem
                         {field.isForeignKey && (
                           <span className="mr-1 text-blue-500" title="Foreign Key">🔗</span>
                         )}
-                        {field.name}
+                        {field.name.replace(/\\n/g, '')}
                       </td>
-                      <td className="px-4 py-2 text-gray-500">{field.type}</td>
-                    </tr>
+                      <td className="px-4 py-2 text-gray-500">{field.type.replace(/\\n/g, '')}</td>
+                </tr>
                   ))}
-                </tbody>
-              </table>
+              </tbody>
+            </table>
             </div>
           ))}
         </div>
@@ -186,7 +203,7 @@ export function SchemaDisplay({ isVisible, schema, isGenerating = false }: Schem
               <span className="ml-1 text-gray-300">KeyMap database.sql</span>
             </div>
             <pre className="whitespace-pre-wrap my-3 p-0">
-              {schema.code && schema.code.split('\n').map((line, index) => {
+              {schema.code && schema.code.replace(/\\n/g, '\n').split('\n').map((line, index) => {
                 // Skip empty lines
                 if (!line.trim()) return <div key={index} className="line">&nbsp;</div>;
                 

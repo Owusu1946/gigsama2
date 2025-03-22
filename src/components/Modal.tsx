@@ -122,7 +122,12 @@ export function Modal({ isOpen, onClose, title, children, actions, isTerminal = 
                   color: #fdba74;
                 }
               `}</style>
-              {children}
+              {React.Children.map(children, child => {
+                if (typeof child === 'string') {
+                  return child.replace(/\\n/g, '\n');
+                }
+                return child;
+              })}
             </div>
           ) : (
             children

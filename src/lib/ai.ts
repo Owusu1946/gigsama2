@@ -8,8 +8,8 @@ import fs from 'fs/promises';
 const API_KEY = process.env.GEMINI_API_KEY || 'YOUR_API_KEY_HERE';
 const genAI = new GoogleGenerativeAI(API_KEY);
 
-const SCHEMA_GENERATION_MODEL = 'gemini-1.5-pro';
-const CHAT_MODEL = 'gemini-1.5-pro';
+const SCHEMA_GENERATION_MODEL = 'gemini-2.0-flash';
+const CHAT_MODEL = 'gemini-2.0-flash';
 
 // Safety settings to prevent harmful content
 const safetySettings = [
@@ -235,6 +235,12 @@ IMPORTANT REQUIREMENTS:
         if (!schema.tables || !schema.type || !schema.code) {
           throw new Error('Invalid schema format - missing required fields');
         }
+        
+        // Option 1: Replace literal '\n' with actual newlines
+        schema.code = schema.code.replace(/\\n/g, '\n');
+        
+        // Option 2: Alternative approach - strip out literal '\n' completely
+        // schema.code = schema.code.replace(/\\n/g, '');
         
         return schema as Schema;
       } catch (jsonError) {
