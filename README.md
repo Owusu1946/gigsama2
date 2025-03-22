@@ -8,12 +8,11 @@ An innovative, production-ready web application that transforms database design 
 
 - **Groundbreaking Guest Mode:** Instantly start designing database schemas without signing up, just like ChatGPT's guest experience
 - **AI-Powered Schema Design:** Interactive assistant with advanced context awareness and real-time typing indicators
-- **Multi-Format Schema Generation:** Support for both SQL (PostgreSQL, MySQL, SQLite) and NoSQL (MongoDB, DynamoDB) formats
 - **Project Management:** Create, view, edit, and delete projects with optimistic UI updates and keyboard navigation
 - **Responsive Design:** Fluid, accessible interface that works seamlessly across devices
 - **User Authentication:** Secure login system with JWT-based session management
 - **Unique Project URLs:** Each schema project has its own unique, shareable URL
-- **Real-time Collaboration:** Share project URLs with collaborators for live updates
+- **Real-time Collaboration:** Share project URLs with collaborators for live updates (viewers)
 - **Error Recovery:** Graceful error handling with intelligent fallbacks and retry mechanisms
 - **Accessibility:** WCAG 2.1 AA compliant with full keyboard navigation support
 
@@ -108,8 +107,8 @@ This approach significantly lowers the barrier to entry for developers who need 
 
 1. Clone the repository
    ```
-   git clone https://github.com/yourusername/keymap.git
-   cd keymap
+   git clone https://github.com/Owusu1964/gigsama2.git
+   cd gigsama2
    ```
 
 2. Install dependencies
