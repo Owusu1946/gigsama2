@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Schema, SchemaTable, SchemaField } from '@/lib/db';
 import { Modal } from './Modal';
 import { ShareSchema } from './ShareSchema';
+import { SchemaVisualization } from './SchemaVisualization';
 
 interface SchemaDisplayProps {
   isVisible: boolean;
@@ -25,6 +26,7 @@ export function SchemaDisplay({ isVisible, schema, isGenerating = false, project
   const [showModal, setShowModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [activeView, setActiveView] = useState<'tables' | 'visualization'>('tables');
   
   // Function to copy SQL code to clipboard
   const copyToClipboard = () => {
@@ -156,36 +158,60 @@ export function SchemaDisplay({ isVisible, schema, isGenerating = false, project
           </div>
         </div>
         
-        <div className="flex flex-wrap gap-6">
-          {schema.tables.map((table: SchemaTable) => (
-            <div key={table.name} className="border rounded-lg overflow-hidden shadow-s border-white">
-            <div className="py-3 px-4 bg-gray-50 font-medium text-sm border-w border-white">
-                {table.name.replace(/\\n/g, '')}
-            </div>
-            <table className="w-full text-sm">
-              <tbody>
-                  {table.fields.map((field: SchemaField, index: number) => (
-                    <tr 
-                      key={`${table.name}-${field.name}-${index}`} 
-                      className={index < table.fields.length - 1 ? "border-w border-white" : ""}
-                    >
-                      <td className="px-4 py-2 flex items-center">
-                        {field.isPrimaryKey && (
-                          <span className="mr-1 text-yellow-500" title="Primary Key">🔑</span>
-                        )}
-                        {field.isForeignKey && (
-                          <span className="mr-1 text-blue-500" title="Foreign Key">🔗</span>
-                        )}
-                        {field.name.replace(/\\n/g, '')}
-                      </td>
-                      <td className="px-4 py-2 text-gray-500">{field.type.replace(/\\n/g, '')}</td>
-                </tr>
-                  ))}
-              </tbody>
-            </table>
-            </div>
-          ))}
+        {/* View toggle tabs */}
+        <div className="flex border-b mb-4">
+          <button 
+            className={`px-4 py-2 text-sm font-medium ${activeView === 'tables' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            onClick={() => setActiveView('tables')}
+          >
+            Tables
+          </button>
+          <button 
+            className={`px-4 py-2 text-sm font-medium ${activeView === 'visualization' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            onClick={() => setActiveView('visualization')}
+          >
+            ER Diagram
+          </button>
         </div>
+        
+        {/* Table view */}
+        {activeView === 'tables' && (
+          <div className="flex flex-wrap gap-6">
+            {schema.tables.map((table: SchemaTable) => (
+              <div key={table.name} className="border rounded-lg overflow-hidden shadow-s border-white">
+              <div className="py-3 px-4 bg-gray-50 font-medium text-sm border-w border-white">
+                  {table.name.replace(/\\n/g, ' ')}
+              </div>
+              <table className="w-full text-sm">
+                <tbody>
+                    {table.fields.map((field: SchemaField, index: number) => (
+                      <tr 
+                        key={`${table.name}-${field.name}-${index}`} 
+                        className={index < table.fields.length - 1 ? "border-w border-white" : ""}
+                      >
+                        <td className="px-4 py-2 flex items-center">
+                          {field.isPrimaryKey && (
+                            <span className="mr-1 text-yellow-500" title="Primary Key">🔑</span>
+                          )}
+                          {field.isForeignKey && (
+                            <span className="mr-1 text-blue-500" title="Foreign Key">🔗</span>
+                          )}
+                          {field.name.replace(/\\n/g, ' ')}
+                        </td>
+                        <td className="px-4 py-2 text-gray-500">{field.type.replace(/\\n/g, ' ')}</td>
+                  </tr>
+                    ))}
+                </tbody>
+              </table>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {/* Visualization view */}
+        {activeView === 'visualization' && (
+          <SchemaVisualization schema={schema} readOnly={readOnly} />
+        )}
         
         {/* SQL Code Button - Only show when not in read-only mode */}
         {schema.code && !readOnly && (
@@ -269,22 +295,15 @@ export function SchemaDisplay({ isVisible, schema, isGenerating = false, project
                 
                 parts.forEach((part, i) => {
                   if (i % 2 === 0) {
-                    // Regular text
-                    if (part) segments.push(<span key={`${index}-${i}`}>{part}</span>);
+                    segments.push(<span key={`${index}-${i}`}>{part}</span>);
                   } else {
-                    // Find the marker type that precedes this part
-                    let markerType = '';
-                    try {
-                      // Find the start of the current part in the original string
-                      const prevPartEnd = parts.slice(0, i).join('').length;
-                      // Find the position of the marker before this part
-                      const markerPos = cleanLine.lastIndexOf('§', prevPartEnd) + 1;
-                      // Get the marker type (one character after §)
-                      markerType = cleanLine.charAt(markerPos);
-                    } catch (e) {
-                      // If we can't determine the marker type, just use default styling
-                      console.warn('Could not determine marker type', e);
-                    }
+                    // Determine marker type from the previous marker
+                    const prevMarker = i > 0 ? cleanLine.substring(
+                      cleanLine.indexOf(parts[i-1]) + parts[i-1].length,
+                      cleanLine.indexOf(part)
+                    ) : '';
+                    
+                    const markerType = prevMarker.charAt(1); // 'k', 'p', 'i', 'n', or 's'
                     
                     switch (markerType) {
                       case 'k':
@@ -329,4 +348,4 @@ export function SchemaDisplay({ isVisible, schema, isGenerating = false, project
       </div>
     </div>
   );
-} 
+}

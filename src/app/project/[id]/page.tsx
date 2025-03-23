@@ -42,6 +42,12 @@ export default function ProjectPage() {
     async function fetchProject() {
       try {
         setIsLoading(true);
+        setShowThinking(true); // Always show thinking indicator during initial load
+        console.log('[Debug] Initial project load started:', projectId);
+        
+        // Keep a timestamp of when we started loading
+        const loadStartTime = Date.now();
+        const minimumLoadingTime = 1500; // Minimum 1.5 seconds of loading for UX
         
         const response = await fetch(`/api/projects/${projectId}`);
         
@@ -69,9 +75,35 @@ export default function ProjectPage() {
         setProjectTitle(project.title);
         setMessages(formattedMessages);
         setSchema(project.schema);
-        setIsLoading(false);
+        
+        // Calculate how much time has passed since loading started
+        const elapsedTime = Date.now() - loadStartTime;
+        const remainingTime = Math.max(0, minimumLoadingTime - elapsedTime);
+        
+        // Ensure loading indicator shows for at least minimumLoadingTime
+        console.log(`[Debug] Project loaded, maintaining loading state for ${remainingTime}ms more`);
+        
+        if (remainingTime > 0) {
+          // If we need to show the loading state longer, wait before turning it off
+          setTimeout(() => {
+            console.log('[Debug] Minimum loading time reached, turning off loading indicators');
+            setShowThinking(false);
+            
+            // Small delay before fully completing load
+            setTimeout(() => {
+              setIsLoading(false);
+            }, 250);
+          }, remainingTime);
+        } else {
+          // If we've already shown loading for long enough, turn it off
+          console.log('[Debug] Loading complete (exceeded minimum time)');
+          setShowThinking(false);
+          setIsLoading(false);
+        }
       } catch (err: any) {
+        console.error('[Debug] Error loading project:', err);
         setError(err.message);
+        setShowThinking(false);
         setIsLoading(false);
       }
     }

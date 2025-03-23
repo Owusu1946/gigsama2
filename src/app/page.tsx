@@ -66,6 +66,7 @@ export default function Home() {
         // Redirect to guest chat page with the query as a parameter
         console.log('User not authenticated - redirecting to guest chat page');
         router.push(`/guest?query=${encodeURIComponent(value)}`);
+        // Loading state will continue until the redirect completes
         return;
       }
       
@@ -94,15 +95,16 @@ export default function Home() {
         throw new Error('Failed to send message');
       }
       
-      // Redirect to the project page
+      // Keep loading state active while redirecting
+      console.log('Project initialization complete - redirecting to project page');
+      
+      // Redirect to the project page (loading state will be maintained during navigation)
       router.push(`/project/${project.id}`);
+      
+      // Loading state will be cleared by the project page component when it loads
       
     } catch (error) {
       console.error('Error creating project and starting conversation:', error);
-      
-      // Reset loading state
-      setIsLoading(false);
-      setShowTransition(false);
       
       // Create the first message pair for fallback behavior
       const firstUserMessage: MessageType = {
@@ -126,8 +128,10 @@ export default function Home() {
       // Transition to chat interface with slight delay for animation
       setTimeout(() => {
         setIsConversationStarted(true);
+        // Only clear loading state after the conversation is fully started
         setIsLoading(false);
-      }, 300);
+        setShowTransition(false);
+      }, 500); // Increased delay to ensure smooth transition
     }
   };
 
